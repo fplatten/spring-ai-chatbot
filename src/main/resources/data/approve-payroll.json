@@ -1,0 +1,8 @@
+{
+  "title": "Approve a Payroll",
+  "category": "Approval",
+  "when_to_do": "Only when requested by the client",
+  "steps": [
+    "Sign in under the role of practitioner for the client and approve the payroll"
+  ]
+}

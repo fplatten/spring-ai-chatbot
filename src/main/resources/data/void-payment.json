@@ -1,0 +1,14 @@
+{
+  "title": "VOID a Calculation",
+  "category": "DB Updates",
+  "when_to_do": "When a payment cannot be approved if calculation status not SUCCEEDED",
+  "steps": [
+    "Create a new git branch in the db_prod_scripts repo",
+    "create a backup DB script",
+    "create a DB script to mark the calculations VOIDED",
+    "create a DB script to mark the calculations APPROVED",
+    "Once the Pull Request is approved have the DB team run the script to VOID the calculation",
+    "replay the failed event",
+    "Have the DB team run the script to return the calculation to APPROVE status"
+  ]
+}
