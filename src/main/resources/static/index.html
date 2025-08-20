@@ -4,13 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spring AI Chatbot</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <!-- DOMPurify for sanitizing HTML from Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.6/dist/purify.min.js"></script>
     <style>
         body {
@@ -126,7 +122,7 @@
         }
         .input-area button:active {
             transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 2px 4px rgba(0, 0, 0, 0.1);
         }
         .loading-indicator {
             display: none; /* Hidden by default */
@@ -251,7 +247,6 @@
         <div class="ai-message message">
             Hi there! How can I assist you today?
         </div>
-        <!-- Loading indicator for AI responses -->
         <div id="loadingIndicator" class="loading-indicator">
             Typing...
         </div>
@@ -262,6 +257,7 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/morphdom@2.6.1/dist/morphdom.min.js"></script>
 <script>
     const messagesContainer = document.getElementById('messagesContainer');
     const userInput = document.getElementById('userInput');
@@ -269,28 +265,22 @@
     const loadingIndicator = document.getElementById('loadingIndicator');
 
     // IMPORTANT: Replace this with your actual Spring AI streaming endpoint.
-    // Example: 'http://localhost:8080/api/chat/stream'
-    // Your Spring AI endpoint should return a Flux<Map<String, String>> or similar stream.
     const CHAT_ENDPOINT = '/api/stream';
 
-    let currentController = null; // To abort ongoing fetch requests
+    let currentController = null;
     let aiMessageDiv = null;
 
-    // Function to scroll to the bottom of the messages container
     function scrollToBottom() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Configure marked.js options once
     marked.setOptions({
-        gfm: true // Enable GitHub Flavored Markdown for broader compatibility
+        gfm: true
     });
 
-    // Function to add a copy button to a code block
     function addCopyButtons(parentDiv) {
         const codeBlocks = parentDiv.querySelectorAll('pre');
         codeBlocks.forEach(pre => {
-            // Check if a copy button already exists to prevent duplicates
             if (pre.querySelector('.copy-button')) {
                 return;
             }
@@ -311,21 +301,19 @@
                 button.textContent = 'Copied!';
                 setTimeout(() => {
                     button.textContent = 'Copy';
-                }, 2000); // Revert text after 2 seconds
+                }, 2000);
             });
         });
     }
 
-    // Function to render Markdown safely
     function renderMarkdown(markdownText) {
-        // Convert Markdown to HTML
         const rawHtml = marked.parse(markdownText);
-        // Sanitize the HTML to prevent XSS attacks
         const cleanHtml = DOMPurify.sanitize(rawHtml, { USE_PROFILES: { html: true } });
         return cleanHtml;
     }
 
     // Function to add a message to the chat display
+    // Updated to return the created div
     function addMessage(text, sender) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message');
@@ -336,37 +324,34 @@
         } else if (sender === 'ai') {
             messageDiv.classList.add('ai-message');
             messageDiv.innerHTML = renderMarkdown(text);
-            addCopyButtons(messageDiv); // Add buttons for pre-rendered content
+            addCopyButtons(messageDiv);
         }
         messagesContainer.appendChild(messageDiv);
         scrollToBottom();
+        return messageDiv;
     }
 
-    // Function to handle sending messages
     async function sendMessage() {
         const prompt = userInput.value.trim();
         if (prompt === '') return;
 
         // Display user message
         addMessage(prompt, 'user');
-        userInput.value = ''; // Clear input
-        sendButton.disabled = true; // Disable send button during response
-        userInput.disabled = true; // Disable input during response
-
-        // Adjust textarea height back to one row
+        userInput.value = '';
+        sendButton.disabled = true;
+        userInput.disabled = true;
         userInput.style.height = '';
 
         // Show loading indicator
         loadingIndicator.style.display = 'block';
         scrollToBottom();
 
-        // Create a new div for the AI's streamed response
+        // Create the initial AI message div with styling classes
         aiMessageDiv = document.createElement('div');
         aiMessageDiv.classList.add('message', 'ai-message');
         messagesContainer.appendChild(aiMessageDiv);
         scrollToBottom();
 
-        // Abort any ongoing fetch request if a new message is sent
         if (currentController) {
             currentController.abort();
         }
@@ -379,21 +364,19 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ prompt: prompt }), // Send prompt in JSON body
-                signal: signal // Attach the abort signal
+                body: JSON.stringify({ prompt: prompt }),
+                signal: signal
             });
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // Get the stream reader and decoder for processing the SSE stream
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
             let accumulatedContent = '';
-            let buffer = ''; // Buffer for incomplete SSE messages
+            let buffer = '';
 
-            // Hide loading indicator once the stream starts
             loadingIndicator.style.display = 'none';
 
             while (true) {
@@ -405,13 +388,11 @@
                 const chunkString = decoder.decode(value, { stream: true });
                 buffer += chunkString;
 
-                // Process buffer for complete SSE messages, which are terminated by '\n\n'
                 let messageEndIndex;
                 while ((messageEndIndex = buffer.indexOf('\n\n')) !== -1) {
-                    const message = buffer.substring(0, messageEndIndex + 2); // Include the \n\n
-                    buffer = buffer.substring(messageEndIndex + 2); // Keep the rest in buffer
+                    const message = buffer.substring(0, messageEndIndex + 2);
+                    buffer = buffer.substring(messageEndIndex + 2);
 
-                    // Extract all 'data:' lines from the SSE message block
                     const lines = message.split('\n');
                     let eventDataContent = '';
                     for (const line of lines) {
@@ -431,12 +412,18 @@
                     }
                 }
 
-                // Update the AI message div with the new accumulated content
-                aiMessageDiv.innerHTML = renderMarkdown(accumulatedContent);
+                // Create a temporary element and give it the same classes as the target
+                const tempDiv = document.createElement('div');
+                tempDiv.classList.add('message', 'ai-message');
+                tempDiv.innerHTML = renderMarkdown(accumulatedContent);
+
+                // Morph the existing aiMessageDiv with the new temporary div, preserving classes
+                morphdom(aiMessageDiv, tempDiv);
+
                 scrollToBottom();
             }
 
-            // After the stream is done, process any remaining content in the buffer
+            // Final update for any remaining content
             if (buffer.length > 0) {
                 const lines = buffer.split('\n');
                 let eventDataContent = '';
@@ -456,20 +443,21 @@
                 }
             }
 
-            // Final update with all accumulated content
-            aiMessageDiv.innerHTML = renderMarkdown(accumulatedContent.trim());
-            addCopyButtons(aiMessageDiv); // Add copy buttons after the final content is rendered
+            // Final morph with all accumulated content
+            const tempFinalDiv = document.createElement('div');
+            tempFinalDiv.classList.add('message', 'ai-message');
+            tempFinalDiv.innerHTML = renderMarkdown(accumulatedContent.trim());
+            morphdom(aiMessageDiv, tempFinalDiv);
 
+            addCopyButtons(aiMessageDiv);
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('Fetch aborted by user or new request.');
-                // If the AI message div exists, update it to show the request was aborted.
                 if (aiMessageDiv) {
                     aiMessageDiv.textContent = 'Request aborted.';
                 }
             } else {
                 console.error("Failed to fetch stream:", error);
-                // If the AI message div exists and there's no content, display a general error message.
                 if (aiMessageDiv && accumulatedContent === '') {
                     aiMessageDiv.textContent = 'Error: Could not get a response. Please check the backend and console.';
                     aiMessageDiv.classList.add('text-red-500');
@@ -477,34 +465,29 @@
             }
         } finally {
             loadingIndicator.style.display = 'none';
-            sendButton.disabled = false; // Re-enable send button
-            userInput.disabled = false; // Re-enable input
-            userInput.focus(); // Focus input for next message
-            currentController = null; // Clear the controller
+            sendButton.disabled = false;
+            userInput.disabled = false;
+            userInput.focus();
+            currentController = null;
             scrollToBottom();
         }
     }
 
-    // Auto-resize the textarea
     function autoResizeTextarea() {
-        userInput.style.height = 'auto'; // Reset height to recalculate
+        userInput.style.height = 'auto';
         userInput.style.height = userInput.scrollHeight + 'px';
     }
 
-    // Event listeners for sending message
     sendButton.addEventListener('click', sendMessage);
     userInput.addEventListener('keypress', (event) => {
-        // Check if the Enter key is pressed without the Shift key
         if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault(); // Prevent adding a new line
+            event.preventDefault();
             sendMessage();
         }
     });
 
-    // Event listener for auto-resizing the textarea
     userInput.addEventListener('input', autoResizeTextarea);
 
-    // Initial scroll to bottom in case of pre-existing messages (like the welcome message)
     scrollToBottom();
 </script>
 </body>
